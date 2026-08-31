@@ -1,0 +1,222 @@
+<!--
+  UWAGA (patrz rozmowa wcześniej w tej sesji):
+  To jest bramka typu "prosta weryfikacja JS", NIE realne zabezpieczenie.
+  - index.html pozostaje publicznie dostępny pod bezpośrednim URL-em niezależnie
+    od tego ekranu — ta strona tylko go nie linkuje wprost, dopóki hasło się nie zgadza.
+  - Hash hasła jest widoczny w kodzie źródłowym (to normalne dla SHA-256 - hash nie
+    ujawnia hasła wprost, ale jest łamalny offline, bez żadnego rate-limitingu).
+  - To jest odstraszacz dla przypadkowego gościa, nie ochrona przed kimś zdeterminowanym.
+  Jeśli potrzebujesz realnej ochrony treści (nie tylko UX-owej), wróć do opcji
+  StatiCrypt (szyfrowanie treści) albo warstwy serwerowej (Front Door + Entra ID),
+  o których rozmawialiśmy.
+
+  JAK ZMIENIĆ HASŁO:
+  1. W terminalu: python3 -c "import hashlib; print(hashlib.sha256('TWOJE_HASLO'.encode()).hexdigest())"
+  2. Skopiuj wynik i podmień wartość zmiennej PASSWORD_HASH poniżej w <script>.
+  Obecne hasło demo: wardline2026
+-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wardline — Logowanie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F151C;
+    --surface: #161F29;
+    --surface-2: #1C2733;
+    --border: #2A3744;
+    --text: #E7EDF3;
+    --text-muted: #8A97A5;
+    --accent: #5FD4C4;
+    --accent-dim: #3E8F85;
+    --danger: #E36464;
+    --display: 'Space Grotesk', sans-serif;
+    --body: 'Inter', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(95,212,196,0.06), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(95,212,196,0.04), transparent 40%);
+  }
+  :focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  .card{
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 36px 32px 32px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+  .logo{
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .logo span{ color: var(--accent); }
+  .lock-icon{
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 18px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lock-icon svg{ width: 18px; height: 18px; stroke: var(--accent); }
+  h1{
+    font-family: var(--display);
+    font-size: 19px;
+    font-weight: 600;
+    text-align: center;
+    margin: 0 0 6px;
+  }
+  .sub{
+    font-size: 13.5px;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0 0 28px;
+  }
+  form{ display: flex; flex-direction: column; gap: 14px; }
+  label{
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  input[type="password"]{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    transition: border-color .15s ease;
+  }
+  input[type="password"]:focus{
+    border-color: var(--accent-dim);
+    outline: none;
+  }
+  button{
+    margin-top: 6px;
+    background: var(--accent);
+    color: #0A1116;
+    border: none;
+    border-radius: 7px;
+    padding: 13px;
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: 14.5px;
+    cursor: pointer;
+    transition: box-shadow .15s ease, transform .1s ease;
+  }
+  button:hover{ box-shadow: 0 0 0 3px rgba(95,212,196,0.22); }
+  button:active{ transform: translateY(1px); }
+  .error{
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--danger);
+    text-align: center;
+    min-height: 16px;
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+  .error.show{ opacity: 1; }
+  .shake{ animation: shake .35s ease; }
+  @keyframes shake{
+    20%, 60%{ transform: translateX(-6px); }
+    40%, 80%{ transform: translateX(6px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .shake{ animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="logo">WARD<span>LINE</span></div>
+  <div class="lock-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+      <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+    </svg>
+  </div>
+  <h1>Dostęp chroniony</h1>
+  <p class="sub">Podaj hasło, aby zobaczyć podgląd projektu</p>
+
+  <form id="loginForm" autocomplete="off">
+    <div>
+      <label for="password">Hasło</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit">Zaloguj</button>
+    <div class="error" id="error">Nieprawidłowe hasło, spróbuj ponownie.</div>
+  </form>
+</div>
+
+<script>
+  // Hash SHA-256 hasła "wardline2026" — podmień na własny (patrz komentarz na górze pliku).
+  const PASSWORD_HASH = "e634233414a78fc0b84b61944e4684cd92051bbb5032d54bb6b89271b7f4bcb1";
+  const REDIRECT_TO = "index.html";
+
+  async function sha256(text){
+    const enc = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  const form = document.getElementById('loginForm');
+  const card = document.getElementById('card');
+  const errorEl = document.getElementById('error');
+  const input = document.getElementById('password');
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    const hash = await sha256(input.value);
+
+    if (hash === PASSWORD_HASH) {
+      window.location.href = REDIRECT_TO;
+    } else {
+      errorEl.classList.add('show');
+      card.classList.remove('shake');
+      void card.offsetWidth; // restart animacji
+      card.classList.add('shake');
+      input.value = '';
+      input.focus();
+    }
+  });
+</script>
+
+</body>
+</html>
